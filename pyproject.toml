@@ -1,0 +1,40 @@
+[project]
+name = "fuel-router"
+version = "0.1.0"
+description = "Route planning API with cost-optimal fuel stops"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    "django~=6.1.1",
+    "djangorestframework~=3.18.1",
+    "gunicorn~=26.2.0",
+    "httpx~=0.28.1",
+    "psycopg[binary]~=3.3.6",
+    "redis~=8.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest~=9.1.1",
+    "pytest-django~=4.14.0",
+    "ruff~=0.16.10",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings"
+python_files = ["test_*.py"]
+addopts = "-ra --strict-markers"
+testpaths = ["planner", "geo", "fuel", "routing", "api"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+extend-exclude = ["*/migrations/*"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "DJ", "SIM", "RUF"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["config", "api", "fuel", "geo", "planner", "routing", "tests"]

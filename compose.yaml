@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgis/postgis:18-3.6
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fuel}
+      POSTGRES_USER: ${POSTGRES_USER:-fuel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fuel}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:8.10-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      target: runtime
+      args:
+        UV_SYNC_ARGS: ""
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-fuel}:${POSTGRES_PASSWORD:-fuel}@db:5432/${POSTGRES_DB:-fuel}
+      REDIS_URL: redis://redis:6379/0
+    command: >
+      gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --reload --access-logfile -
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
