@@ -13,7 +13,9 @@ def st(id_, mile, price, detour=0):
 
 
 def trip(distance, start_fuel=1, end_fuel=0):
-    return Trip(distance_miles=D(str(distance)), start_fuel=D(str(start_fuel)), end_fuel=D(str(end_fuel)))
+    return Trip(
+        distance_miles=D(str(distance)), start_fuel=D(str(start_fuel)), end_fuel=D(str(end_fuel))
+    )
 
 
 def summary(plan):

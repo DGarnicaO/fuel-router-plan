@@ -70,7 +70,9 @@ def plan_greedy(trip: Trip, stations: Iterable[Station], vehicle: Vehicle) -> Pl
             if not reachable:
                 if index < len(route):
                     raise NoFeasiblePlan(
-                        here_mile, route[index].mile, "Next fuel station is beyond the vehicle range"
+                        here_mile,
+                        route[index].mile,
+                        "Next fuel station is beyond the vehicle range",
                     )
                 if dest_need - end_gallons <= max_after:
                     reason = "No station close enough to the destination to arrive with end_fuel"

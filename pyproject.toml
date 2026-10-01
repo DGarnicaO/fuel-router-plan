@@ -35,6 +35,8 @@ extend-exclude = ["*/migrations/*"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "DJ", "SIM", "RUF"]
+# Django declares Meta options and view config as mutable class attributes by design.
+ignore = ["RUF012"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["config", "api", "fuel", "geo", "planner", "routing", "tests"]
