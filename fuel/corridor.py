@@ -25,12 +25,18 @@ PRICE_COLUMNS = {"min": "min_price", "avg": "avg_price"}
 #   the detour fuel spread over a full tank.
 CORRIDOR_SQL = """
 WITH route AS (
-    SELECT ST_Transform(ST_GeomFromText(%(route_wkt)s, 4326), 5070) AS geom
+    -- Provider geometries are dense (NY-LA: ~21k vertices). Simplifying by a few dozen meters is
+    -- invisible next to mile-scale buffers and makes every geometry function below much cheaper.
+    SELECT ST_Simplify(
+               ST_Transform(ST_GeomFromText(%(route_wkt)s, 4326), 5070), %(simplify_m)s
+           ) AS geom
 ),
-r AS (
+r AS MATERIALIZED (
     SELECT geom, ST_Length(geom) AS len FROM route
 ),
-pieces AS (
+-- MATERIALIZED: compute each piece once, instead of re-running ST_LineSubstring inside the index
+-- condition and both filters of the join below.
+pieces AS MATERIALIZED (
     SELECT ST_LineSubstring(
                r.geom,
                LEAST(i * %(piece_m)s / r.len, 1.0),
@@ -106,11 +112,17 @@ class CorridorParams:
     city_buffer_miles: float
     k_per_bucket: int
     range_miles: float
+    simplify_meters: float = 50.0
 
 
 def route_wkt(coordinates: Sequence[Sequence[float]]) -> str:
-    """GeoJSON-order (lon, lat) coordinates to a WKT LineString."""
-    return "LINESTRING(" + ", ".join(f"{lon} {lat}" for lon, lat, *_ in coordinates) + ")"
+    """GeoJSON-order (lon, lat) coordinates to a WKT LineString.
+
+    Deliberately not simplified here: simplifying in lat/lon degrees would turn a road that runs
+    along a parallel into a straight chord, which bows ~1 km away from it once projected.
+    Simplification happens in SQL, in meters, after projecting to EPSG:5070.
+    """
+    return "LINESTRING(" + ", ".join(f"{c[0]} {c[1]}" for c in coordinates) + ")"
 
 
 def _sql_params(
@@ -127,6 +139,7 @@ def _sql_params(
         "max_buffer_m": max(exit_m, city_m),
         "range_m": params.range_miles * METERS_PER_MILE,
         "k": params.k_per_bucket,
+        "simplify_m": params.simplify_meters,
     }
 
 
