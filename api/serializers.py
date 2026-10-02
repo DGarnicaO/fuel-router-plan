@@ -34,6 +34,14 @@ class RoutePlanQuerySerializer(serializers.Serializer):
         max_value=Decimal(1),
         default=_default("END_FUEL_DEFAULT"),
     )
+    stop_penalty = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        min_value=Decimal(0),
+        max_value=Decimal(1000),
+        default=_default("STOP_PENALTY_DEFAULT"),
+        help_text="Dollar value of one stop; 0 = minimize fuel cost only",
+    )
     geometry = serializers.ChoiceField(choices=["simplified", "full", "none"], default="simplified")
 
 
@@ -82,6 +90,7 @@ def serialize_plan(result: PlanResult) -> dict:
             "price_strategy": params.price_strategy,
             "start_fuel": float(params.start_fuel),
             "end_fuel": float(params.end_fuel),
+            "stop_penalty": _q(params.stop_penalty, "0.01"),
         },
         "map_url": result.map_url,
     }

@@ -95,10 +95,14 @@ FUEL_PLANNER = {
     "PRICE_STRATEGY_DEFAULT": "min",
     "START_FUEL_DEFAULT": 1.0,
     "END_FUEL_DEFAULT": 0.0,
+    # Dollar value of one fuel stop (driver time). Shapes the plan, never added to fuel cost.
+    "STOP_PENALTY_DEFAULT": 10.0,
     # Corridor search (see DESIGN.md §8).
     "CORRIDOR_PIECE_MILES": 25,
     "CORRIDOR_BUFFER_MILES": {"EXIT": 2, "CITY": 8},
     "CORRIDOR_K_PER_BUCKET": 5,
+    # Route simplification before corridor math, in meters (EPSG:5070).
+    "CORRIDOR_SIMPLIFY_METERS": 50,
     # Geometry simplification tolerance in degrees (~100 m).
     "SIMPLIFY_TOLERANCE_DEG": 0.001,
     # A lat,lon input must have a gazetteer place within this distance to count as "in the US".

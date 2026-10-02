@@ -45,6 +45,8 @@ class Trip:
     distance_miles: Decimal
     start_fuel: Decimal  # fraction of the tank, 0..1
     end_fuel: Decimal = ZERO  # required tank fraction on arrival, 0..1
+    # Dollar value of the time/hassle of one stop. Shapes the plan; never added to fuel cost.
+    stop_penalty: Decimal = ZERO
 
 
 @dataclass(frozen=True, slots=True)

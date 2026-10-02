@@ -12,9 +12,12 @@ def st(id_, mile, price, detour=0):
     return Station(id=id_, mile=D(str(mile)), price=D(str(price)), detour_miles=D(str(detour)))
 
 
-def trip(distance, start_fuel=1, end_fuel=0):
+def trip(distance, start_fuel=1, end_fuel=0, stop_penalty=0):
     return Trip(
-        distance_miles=D(str(distance)), start_fuel=D(str(start_fuel)), end_fuel=D(str(end_fuel))
+        distance_miles=D(str(distance)),
+        start_fuel=D(str(start_fuel)),
+        end_fuel=D(str(end_fuel)),
+        stop_penalty=D(str(stop_penalty)),
     )
 
 
@@ -115,6 +118,40 @@ def test_full_end_tank_without_station_at_destination_is_infeasible():
     with pytest.raises(NoFeasiblePlan) as exc:
         plan_greedy(trip(300, end_fuel=1), [st(1, 250, "3.00")], TRUCK)
     assert exc.value.to_mile == D(300)
+
+
+MICRO_STOP_ROUTE = [st(1, 0, "3.00"), st(2, 10, "2.99"), st(3, 450, "3.50")]
+
+
+def test_without_stop_penalty_greedy_chases_a_one_cent_cheaper_station():
+    plan = plan_greedy(trip(600, start_fuel=0), MICRO_STOP_ROUTE, TRUCK)
+    # Buys 1 gal at A just to reach B (1 cent cheaper) 10 miles later.
+    assert summary(plan) == [
+        (1, D(1), D("3.00")),
+        (2, D(50), D("149.50")),
+        (3, D(9), D("31.50")),
+    ]
+
+
+def test_stop_penalty_skips_stops_that_do_not_pay_for_themselves():
+    plan = plan_greedy(trip(600, start_fuel=0, stop_penalty=10), MICRO_STOP_ROUTE, TRUCK)
+    # B saves 1 cent/gal, far below $10 / 50 gal = 20 cents: fill at A, next stop C.
+    assert summary(plan) == [(1, D(50), D("150.00")), (3, D(10), D("35.00"))]
+    # One stop fewer for $1 more fuel: worth it at a $10 stop cost.
+    assert plan.cost == D("185.00")
+
+
+def test_stop_penalty_still_takes_a_much_cheaper_station():
+    stations = [st(1, 0, "3.50"), st(2, 100, "2.90"), st(3, 450, "3.50")]
+    plan = plan_greedy(trip(600, start_fuel=0, stop_penalty=10), stations, TRUCK)
+    # 60 cents/gal cheaper is well above the 20 cent threshold: buy just enough to reach it.
+    assert summary(plan)[0] == (1, D(10), D("35.00"))
+    assert summary(plan)[1][0] == 2
+
+
+def test_negative_stop_penalty_is_rejected():
+    with pytest.raises(ValueError):
+        plan_greedy(trip(100, stop_penalty=-1), [], TRUCK)
 
 
 def test_input_order_does_not_matter():

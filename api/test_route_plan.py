@@ -68,6 +68,7 @@ def test_trip_within_range_needs_no_stop_and_calls_provider_once(client, fake_pr
         "price_strategy": "min",
         "start_fuel": 1.0,
         "end_fuel": 0.0,
+        "stop_penalty": "10.00",
     }
     assert body["map_url"].startswith("/route-plan/map/?start=Westville")
     assert len(fake_provider.calls) == 1
@@ -101,6 +102,26 @@ def test_price_strategy_changes_effective_price(client):
     assert Decimal(by_avg["summary"]["fuel_purchased_cost"]) > Decimal(
         by_min["summary"]["fuel_purchased_cost"]
     )
+
+
+def test_stop_penalty_zero_chases_marginally_cheaper_stations(client):
+    # Two stations 8 miles apart, 1 cent apart in price, both within the first leg.
+    make_station(39.0, -94.9, ["3.00"])
+    make_station(39.0, -94.75, ["2.99"])
+    finish_stations()
+    params = {**TRIP, "start_fuel": "0.02"}  # 10 miles of fuel: must stop at the first one
+
+    pure = client.get(URL, {**params, "stop_penalty": "0"}).json()
+    practical = client.get(URL, params).json()  # default $10 per stop
+
+    assert pure["summary"]["stops"] == 2
+    assert practical["summary"]["stops"] == 1
+    assert practical["assumptions"]["stop_penalty"] == "10.00"
+    # The penalty shapes the plan but is never added to the money spent.
+    extra = Decimal(practical["summary"]["fuel_purchased_cost"]) - Decimal(
+        pure["summary"]["fuel_purchased_cost"]
+    )
+    assert Decimal(0) <= extra < Decimal("10.00")
 
 
 def test_end_fuel_buys_extra_fuel_before_arrival(client, stations):
@@ -150,6 +171,7 @@ def test_missing_and_invalid_params(client):
     error = assert_error(client.get(URL, {**TRIP, "start_fuel": "1.5"}), 400, "INVALID_REQUEST")
     assert "start_fuel" in error["details"]
     assert_error(client.get(URL, {**TRIP, "price_strategy": "max"}), 400, "INVALID_REQUEST")
+    assert_error(client.get(URL, {**TRIP, "stop_penalty": "-1"}), 400, "INVALID_REQUEST")
 
 
 def test_no_feasible_plan(client):

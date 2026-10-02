@@ -24,6 +24,7 @@ class PlanParams:
     price_strategy: str
     start_fuel: Decimal
     end_fuel: Decimal
+    stop_penalty: Decimal
     geometry: str  # "simplified" | "full" | "none"
 
 
@@ -74,6 +75,7 @@ class RoutePlanService:
             city_buffer_miles=buffers["CITY"],
             k_per_bucket=conf["CORRIDOR_K_PER_BUCKET"],
             range_miles=conf["RANGE_MILES"],
+            simplify_meters=conf["CORRIDOR_SIMPLIFY_METERS"],
         )
         self.simplify_tolerance = conf["SIMPLIFY_TOLERANCE_DEG"]
 
@@ -101,6 +103,7 @@ class RoutePlanService:
                     distance_miles=_miles(route.distance_m),
                     start_fuel=params.start_fuel,
                     end_fuel=params.end_fuel,
+                    stop_penalty=params.stop_penalty,
                 ),
                 [
                     Station(
