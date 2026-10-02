@@ -12,14 +12,20 @@ Design decisions and their reasoning: [DESIGN.md](DESIGN.md).
 
 Requirements: Docker. An [OpenRouteService API key](https://openrouteservice.org/dev/#/signup) (free).
 
+1. Copy `.env.example` to `.env` and set `ORS_API_KEY`.
+2. Put the provided price file at `data/fuel-prices.csv`.
+3. Start the stack and load the data. All commands run from the project folder on your machine; `docker compose exec web …` executes them inside the web container, so nothing else needs installing locally.
+
 ```bash
-cp .env.example .env                       # set ORS_API_KEY
-# put the provided price file at data/fuel-prices.csv
-docker compose up -d --build               # PostGIS, Redis, web on :8000
-make seed                                  # migrate + load cities + import prices
+docker compose up -d --build     # PostGIS, Redis, web on http://localhost:8000
+docker compose exec web python manage.py migrate
+docker compose exec web python manage.py load_cities data/2025_Gaz_place_national.txt
+docker compose exec web python manage.py load_fuel_prices data/fuel-prices.csv
 ```
 
-`make seed` prints an import coverage report (stations located by city centroid / unlocated).
+With GNU Make available (Linux, macOS, WSL), `make up` and `make seed` run the same steps.
+
+The price import prints a coverage report (stations located by city centroid / unlocated). Re-running it with the same file is a no-op; `.env` changes need `docker compose up -d` to recreate the container.
 
 ## API
 
@@ -31,31 +37,35 @@ make seed                                  # migrate + load cities + import pric
 | `price_strategy` | `min` | `min` or `avg` of the duplicate price observations per station |
 | `start_fuel` | `1.0` | Tank fraction at departure |
 | `end_fuel` | `0.0` | Tank fraction required on arrival (e.g. return a rental at the same level) |
+| `stop_penalty` | `10.00` | Dollar value of one stop (driver time). Avoids 1-gallon top-ups; never added to the cost. `0` = fuel cost only |
 | `geometry` | `simplified` | `simplified`, `full` or `none` |
 
 ```bash
 curl "http://localhost:8000/api/v1/route-plan/?start=New%20York,%20NY&finish=Los%20Angeles,%20CA"
 ```
 
+On Windows PowerShell use `curl.exe` (plain `curl` is an alias for `Invoke-WebRequest`).
+
 ```json
 {
-  "summary": {"distance_miles": 2789.4, "duration_hours": 45.1, "gallons_consumed": 279.1,
-              "fuel_purchased_cost": "812.45", "stops": 5},
+  "summary": {"distance_miles": 2811.5, "duration_hours": 65.4, "gallons_consumed": 284.12,
+              "fuel_purchased_cost": "715.91", "stops": 6},
   "start": {"query": "New York, NY", "resolved": "New York, NY"},
   "finish": {"query": "Los Angeles, CA", "resolved": "Los Angeles, CA"},
-  "route": {"type": "LineString", "coordinates": [[-74.006, 40.7128], "..."]},
+  "route": {"type": "LineString", "coordinates": [[-73.93872, 40.6631], "..."]},
   "fuel_stops": [
-    {"opis_id": 1234, "name": "...", "city": "...", "state": "PA", "lat": 40.1, "lon": -77.2,
-     "location_source": "CITY", "mile_marker": 480.2, "detour_miles": 3.1,
-     "price_per_gallon": "3.459", "gallons": "48.20", "cost": "166.72"}
+    {"opis_id": 72445, "name": "SHEETZ #639", "city": "Youngstown", "state": "OH",
+     "lat": 41.09909, "lon": -80.6459, "location_source": "CITY", "mile_marker": 399.4,
+     "detour_miles": 7.6, "price_per_gallon": "3.059", "gallons": "40.32", "cost": "123.34"},
+    "... 5 more"
   ],
   "assumptions": {"range_miles": 500.0, "mpg": 10.0, "price_strategy": "min",
-                  "start_fuel": 1.0, "end_fuel": 0.0},
+                  "start_fuel": 1.0, "end_fuel": 0.0, "stop_penalty": "10.00"},
   "map_url": "/route-plan/map/?start=New+York%2C+NY&finish=Los+Angeles%2C+CA"
 }
 ```
 
-*(Illustrative values.)* Errors share one shape: `{"error": {"code", "message", "details"}}`. Codes: `INVALID_LOCATION`, `INVALID_REQUEST` (400), `NO_FEASIBLE_PLAN` (422), `THROTTLED` (429), `PROVIDER_ERROR` (502), `PROVIDER_TIMEOUT` (504). The `Server-Timing` header breaks down geocode / route / corridor / optimize time.
+*(Real output, truncated; prices from the provided file.)* Errors share one shape: `{"error": {"code", "message", "details"}}`. Codes: `INVALID_LOCATION`, `INVALID_REQUEST` (400), `NO_FEASIBLE_PLAN` (422), `THROTTLED` (429), `PROVIDER_ERROR` (502), `PROVIDER_TIMEOUT` (504). The `Server-Timing` header breaks down geocode / route / corridor / optimize time.
 
 ## Project layout
 
@@ -72,9 +82,12 @@ data/      Census Gazetteer 2025 places file (public domain)
 ## Tests
 
 ```bash
-make test        # pytest against real PostGIS; the routing provider is always faked
-make lint        # ruff
+docker compose exec web pytest                # real PostGIS; the routing provider is always faked
+docker compose exec web ruff check .          # lint
+docker compose exec web ruff format --check . # formatting
 ```
+
+(`make test` / `make lint` are shortcuts for the same.)
 
 The suite covers the optimizer edge cases, name normalization, import idempotency, the corridor query (including that the GiST index is used), the ORS adapter's retry/error mapping, and every API error code.
 
